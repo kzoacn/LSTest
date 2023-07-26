@@ -65,16 +65,20 @@ template<int n>
 struct BitBasisWithConstant{
     vector<bitset<n+1> >bs;
 
+    int r;
+
     BitBasisWithConstant(){
         bs.resize(n);
+        r=0;
     }
-
-    bool insert(const bitset<n+1> &_a){
+    
+    bool insert(const bitset<n+1> &_a){ 
         bitset<n+1> a=_a;
         for(int i=0;i<n;i++){
             if(a[i]){
                 if(!bs[i][i]){
                     bs[i]=a;
+                    r++;
                     return true;
                 }else{
                     a^=bs[i];
@@ -88,11 +92,7 @@ struct BitBasisWithConstant{
         bs.resize(n);
     }
     int rank()const{
-        int res=0;
-        for(int i=0;i<n;i++)
-            if(bs[i][i])
-                res++;
-        return res;
+        return r;
     }
     vector<int> basic_vars(){
         vector<int>res;

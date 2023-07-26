@@ -26,7 +26,8 @@ int main(){
         }
     }
 
-    cout << "time = " << (clock()-st)/CLOCKS_PER_SEC << endl;
+    //cout << "time = " << (clock()-st)/CLOCKS_PER_SEC << endl;
+    cout<<"average time = "<<(clock()-st)/CLOCKS_PER_SEC<<"ms"<<endl;
 
     return 0;
 }

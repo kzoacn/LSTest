@@ -6,24 +6,13 @@
 #include<map> 
 #include "bitbasis.hpp" 
 #include <random>
+#include "constant.h"
 #include "rain.hpp"
 using namespace std;
 
-#define RAIN 
-//#define AIM
-
-#ifdef RAIN
-
-    #define N 128
-    #define LOGD 8
-
-    #define T (2*LOGD)
-    #define FREE_VARS (2*LOGD)
-    #define QUAD_VARS (FREE_VARS+FREE_VARS*(FREE_VARS-1)/2)
-#endif 
 
 const int n=N; 
-vector<int> irr_poly;
+vector<int> irr_poly,irr_pos;
 
 Rain rain;
 GF P,K,C,X=1;
@@ -32,11 +21,27 @@ vector<GF> M1,M1_inv;
 void set_parameters(){
     irr_poly.resize(n+1); 
  
+#if N!=256
     irr_poly[n]=1;
     irr_poly[7]=1;
     irr_poly[2]=1;
     irr_poly[1]=1;
     irr_poly[0]=1;
+    irr_pos.push_back(7);
+    irr_pos.push_back(2);
+    irr_pos.push_back(1);
+    irr_pos.push_back(0);
+#else
+    irr_poly[n]=1;
+    irr_poly[10]=1;
+    irr_poly[5]=1;
+    irr_poly[2]=1; 
+    irr_poly[0]=1;
+    irr_pos.push_back(10);
+    irr_pos.push_back(5);
+    irr_pos.push_back(2);
+    irr_pos.push_back(0);
+#endif
 
 }
 
@@ -93,11 +98,12 @@ string name(int id){
 
 
 
+template<int BITS>
 struct Expression{
     //vector<Term> terms;
     //int constant;
 
-    bitset<QUAD_VARS+1>terms;
+    bitset<BITS+1>terms;
     //terms[QUAD_VARS] is constant
 
     // exp= \sum terms + constant
@@ -106,20 +112,20 @@ struct Expression{
         terms[t]=1;
     }
     void set_const(int c){
-        terms[QUAD_VARS]=c;
+        terms[BITS]=c;
     }
     void add_one(){
-        terms[QUAD_VARS].flip();
+        terms[BITS].flip();
     }
     int get_const()const{
-        return terms[QUAD_VARS];
+        return terms[BITS];
     }
 
     void print(bool quad_flag=false){
 
         vector<string>text;
         if(quad_flag){
-            for(int i=0;i<QUAD_VARS;i++)if(terms[i]){
+            for(int i=0;i<BITS;i++)if(terms[i]){
                 int v1=rmapping[i].first,v2=rmapping[i].second;
                 if(v1==v2){
                     text.push_back(name(v1));
@@ -130,14 +136,14 @@ struct Expression{
 
             return ;
         }else{
-            for(int i=0;i<128;i++)if(terms[i]){
+            for(int i=0;i<n;i++)if(terms[i]){
                 text.push_back(name(i));
             }
         }
 
         sort(text.begin(),text.end());
         
-        if(terms[QUAD_VARS]){
+        if(terms[BITS]){
             text.push_back("1");
         }
         for(int i=0;i<text.size();i++){
@@ -162,34 +168,12 @@ struct Expression{
         res.terms^=oth.terms;
         return res;
     } 
-    
-    Expression operator*(const Expression& oth)const{
-        Expression res;
-        for(auto i : free_vars)if(terms[i]){
-            for(auto j : free_vars)if(oth.terms[j]){
-                int x=i,y=j;
-                if(x>y)swap(x,y);
-                res.terms[mapping[x][y]].flip();
-            }
-        }
-
-        if(get_const()){
-            res.terms^=oth.terms;
-        }
-        
-        if(oth.get_const())
-            res.terms^=terms;
-
-        res.set_const(get_const()&oth.get_const());
-
-        return res;
-    }
 
     int eval(GF x){
         int ans=0;
-        for(int i=0;i<128;i++)
+        for(int i=0;i<n;i++)
             ans^=terms[i]&x[i];
-        ans^=terms[QUAD_VARS];
+        ans^=terms[BITS];
         return ans;
     }
     /*Expression subs(vector<Expression> repr)const{
@@ -207,26 +191,12 @@ struct Expression{
     }*/
 };
 
-typedef vector<Expression> Poly;
+typedef vector<Expression<N> > Poly;
 
 
 
-vector<bitset<n> >rand_mat(){// ensure that the matrix is invertible
-    int r=0;
-    vector<bitset<n> >vec;
-    BitBasis<n> basis;
-    std::mt19937 mt;
-    while(r<n){
-        bitset<n>bs;
-        for(int i=0;i<n;i++)
-            bs[i]=mt()%2;
-        if(basis.insert(bs)){
-            vec.push_back(bs);
-            r++;
-        }
-    }
-    return vec;
-}
+
+
 
 
 
@@ -275,29 +245,145 @@ Poly multiply(Poly a,Poly b){
     return c;
 }*/
 
-Poly multiply(Poly a,Poly b){
-    Poly c;
+typedef vector<Expression<QUAD_VARS> > QuadPoly;
+
+
+
+    Expression<QUAD_VARS> exp_mul(const Expression<N> a,const Expression<N>& b){
+        Expression<QUAD_VARS> res;
+        for(auto i : free_vars)if(a.terms[i]){
+            for(auto j : free_vars)if(b.terms[j]){
+                int x=i,y=j;
+                if(x>y)swap(x,y);
+                res.terms[mapping[x][y]].flip();
+            }
+        }
+
+        if(a.get_const()){
+            for(auto i : free_vars)if(b.terms[i])
+                res.terms[i].flip();
+        }
+        
+        if(b.get_const()){
+            for(auto i : free_vars)if(a.terms[i])
+                res.terms[i].flip();
+        }
+
+        res.set_const(a.get_const()&b.get_const());
+
+        return res;
+    }
+
+
+QuadPoly multiply(Poly a,Poly b){
+    QuadPoly c;
     c.resize(a.size()+b.size()-1);
+
+    const int FR2=FREE_VARS*FREE_VARS;
+    vector<bitset<FR2> > mask,rep;
+
+    for(int i=0;i<a.size();i++){
+        bitset<FR2> bs;
+        int idx=0;
+        for(auto j : free_vars){
+            if(a[i].terms[j]){
+                for(int k=idx*FREE_VARS;k<idx*FREE_VARS+FREE_VARS;k++)
+                    bs[k]=1;
+            }
+            idx++;
+        }
+        mask.push_back(bs);
+    }
+    for(int i=0;i<b.size();i++){
+        bitset<FR2> bs;
+        int idx=0;
+
+        for(int k=0;k<FREE_VARS;k++){
+            for(auto j : free_vars){
+                bs[idx]=b[i].terms[j];
+                idx++;
+            }
+        }
+        rep.push_back(bs);
+    }
+
+    vector<bitset<FR2> >C;
+    C.resize(a.size()+b.size()-1);
 
     for(int i=0;i<a.size();i++){
         for(int j=0;j<b.size();j++){
-            Expression exp=a[i]*b[j];
-            c[i+j].terms^=exp.terms;
+            C[i+j]^=mask[i]&rep[j];
+        }
+    }
+    
+    // mod c by irr_poly
+    for(int i=(int)C.size()-1;i>=n;i--){
+        for(auto j : irr_pos){
+            C[i-(n-j)]^=C[i];
+        }
+    }
+    C.resize(n);
+
+
+
+    for(int i=0;i<a.size();i++){
+        for(int j=0;j<b.size();j++){
+            //Expression<QUAD_VARS> exp=exp_mul(a[i],b[j]);
+
+            /*for(auto k : free_vars)if(a[i].terms[k]){
+                for(auto l : free_vars)if(b[j].terms[l]){
+                    int x=k,y=l;
+                    if(x>y)swap(x,y);
+                    c[i+j].terms[mapping[x][y]].flip();
+                }
+            }*/
+            
+            if(a[i].get_const()){
+                for(auto k : free_vars)if(b[j].terms[k])
+                    c[i+j].terms[k].flip();
+            }
+            
+            if(b[j].get_const()){
+                for(auto k : free_vars)if(a[i].terms[k])
+                    c[i+j].terms[k].flip();
+            }
+            if(a[i].get_const()&&b[j].get_const())
+                c[i+j].terms[QUAD_VARS].flip();
         }
     } 
  
 
     // mod c by irr_poly
     for(int i=(int)c.size()-1;i>=n;i--){
-        for(int j=0;j<n;j++)if(irr_poly[j]){
+        for(auto j : irr_pos){
             c[i-(n-j)].terms^=c[i].terms;
         }
     }
     c.resize(n);
+
+    for(int i=0;i<c.size();i++){
+        for(int j=0;j<FREE_VARS;j++)
+        for(int k=0;k<FREE_VARS;k++){
+            int x=free_vars[j],y=free_vars[k]; 
+            if(C[i][j*FREE_VARS+k])
+                c[i].terms[mapping[x][y]].flip();
+        }
+    }
     
     return c;
 }
 
+QuadPoly to_quad(Poly a){
+    QuadPoly c;
+    c.resize(a.size());
+    for(int i=0;i<a.size();i++){
+        for(auto j : free_vars)if(a[i].terms[j]){
+            c[i].terms[j].flip();
+        }
+        c[i].set_const(a[i].get_const());
+    }
+    return c;
+}
 
 Poly multiply_const(Poly a,Poly b){
     Poly c;
@@ -332,6 +418,19 @@ Poly add(Poly a,Poly b){
     }
     
     return c;
+}
+QuadPoly add(QuadPoly a,QuadPoly b){
+    QuadPoly c;
+    c.resize(a.size());
+    for(int i=0;i<a.size();i++){
+        c[i]=a[i]+b[i];
+    }
+    
+    return c;
+}
+
+QuadPoly add(QuadPoly a,Poly b){
+    return add(a,to_quad(b));
 }
 
 Poly square(Poly a){
@@ -368,14 +467,14 @@ int ans=0;
 
 GF eval(Poly a,GF x){
     GF res;
-    for(int i=0;i<128;i++){
+    for(int i=0;i<n;i++){
         res[i]= a[i].eval(x);
     }
     return res;
 }
 
 void print(GF x){
-    for(int i=0;i<128;i++)
+    for(int i=0;i<n;i++)
         cout<<x[i];
     cout<<endl;
 }
@@ -404,7 +503,7 @@ void generate(int _i){
 
     x.resize(n);
     for(int i=0;i<n;i++){
-        x[i]=Expression(i);
+        x[i]=Expression<N>(i);
     }
     auto tx=x;
     for(int i=0;i<n;i++){ 
@@ -412,11 +511,11 @@ void generate(int _i){
         tx=square(tx); 
     }
     
-    vector<Expression> equations;
+    vector<Expression<N> > equations;
 
     for(auto t : {T}){ 
         //auto equation=add(power_of_x[t],multiply(pow(alpha,2*LOGD,-1),x));  
-        auto _const = GF_pow(_alpha,(1<<2*LOGD)-1);
+        auto _const = GF_pow(_alpha,(1ULL<<2*LOGD)-1);
         Poly c;
         c.resize(n);
         for(int i=0;i<n;i++)
@@ -460,7 +559,7 @@ void generate(int _i){
     for(auto var : free_vars){
         cout<<"free var: "<<name(var)<<endl;
     }*/
-    vector<Expression> repr_x;// represent basic vars as linear combination of free vars O(n^2)
+    vector<Expression<N> > repr_x;// represent basic vars as linear combination of free vars O(n^2)
     repr_x.resize(n);
     for(int i=n-1;i>=0;i--){
         if(basis.bs[i][i]){
@@ -472,7 +571,7 @@ void generate(int _i){
             if(basis.bs[i][n])
                 repr_x[i].add_one();
         }else{
-            repr_x[i]=Expression(i);
+            repr_x[i]=Expression<N>(i);
         }
     }
     /*cout<<"### represent vars as free vars ###"<<endl;
@@ -534,7 +633,7 @@ void generate(int _i){
 
     equations.clear();
 
-    vector<Poly> equations_over_GF2n;
+    vector<QuadPoly> equations_over_GF2n;
   
     
     memset(mapping,-1,sizeof(mapping));
@@ -553,6 +652,7 @@ void generate(int _i){
     for(auto v2 : free_vars){
         if(v1<v2){
             mapping[v1][v2]=*names.begin();
+            mapping[v2][v1]=*names.begin();
             rmapping[*names.begin()]=make_pair(v1,v2);
             names.erase(names.begin());
         }
@@ -564,8 +664,7 @@ void generate(int _i){
     auto K=add(repr_x,c1_P);
 
 
-
-    auto before = add( multiply_matrix(M1,pow(repr_x,LOGD)),add(K,c2));  
+    auto before =  add( multiply_matrix(M1,pow(repr_x,LOGD)),add(K,c2));  
     auto after = add(K,c);
 
     
@@ -583,38 +682,46 @@ void generate(int _i){
     print(GF_mul(eb,GF_inv(eb)));*/
 
 
+
     auto rx=add(multiply(before,after),one);   
     auto r2x_r=add(multiply(square(before),after),before); 
-    auto rx2_x=add(multiply(before,square(after)),after);  
+
 
     equations_over_GF2n.push_back(rx); 
     equations_over_GF2n.push_back(r2x_r);
-    equations_over_GF2n.push_back(rx2_x); 
 
+
+#if N != 128    
+    auto rx2_x=add(multiply(before,square(after)),after);  
+    equations_over_GF2n.push_back(rx2_x); 
+#endif
 
     //rx[0].print(true);
 
     //Finding l
     //Solving final quadratic equations costs O(quad_vars^3)
-
+    QuadPoly equations_quad ;
     for(auto equation : equations_over_GF2n){
         for(auto eq: equation){ 
-            equations.push_back(eq);
+            equations_quad.push_back(eq);
         }
     }
 
-    for(auto eq : equations){
+    for(auto eq : equations_quad){
        // eq.print();
     }
 
-
+ 
     BitBasisWithConstant<QUAD_VARS> basis2;
-    for(auto eq : equations){
+    int cnt=0;
+    for(auto eq : equations_quad){
         bitset<QUAD_VARS+1>bs;
         for(int i=0;i<QUAD_VARS;i++)if(eq.terms[i])
             bs[i]=1;
         bs[QUAD_VARS]=eq.get_const();
         basis2.insert(bs);
+        if(basis2.rank()==QUAD_VARS)
+            break;
     }
 
     //ans^=basis2.rank();
@@ -631,7 +738,7 @@ void generate(int _i){
             if(basis2.bs[i][QUAD_VARS])
                 val[i].flip();
         }else{
-            throw;
+            return ;
         }
     }
 
@@ -653,7 +760,7 @@ void generate(int _i){
 
     GF candidate_key;
 
-    for(int i=0;i<128;i++)
+    for(int i=0;i<n;i++)
         candidate_key[i]=val[i]^rain.c1[i]^P[i];
 
     auto _c = rain.enc_2r(candidate_key,P);
@@ -700,22 +807,24 @@ int main(){
     K = X^rain.c1^P;
     
     cout<<"K =";
-    for(int i=0;i<128;i++)
+    for(int i=0;i<n;i++)
         cout<<K[i];
     cout<<endl;
       
     C = rain.enc_2r(K,P);
     
     cout<<"C = ";
-    for(int i=0;i<128;i++)
+    for(int i=0;i<n;i++)
         cout<<C[i];
     cout<<endl;
    
 
     double st=clock();
-    for(int i=1;i<=1000;i++)
+    int TRIALS=100;
+
+    for(int i=1;i<=TRIALS;i++)
         generate(i);
-    cout<<"time = "<<(clock()-st)/CLOCKS_PER_SEC<<endl;
+    cout<<"average time = "<<(clock()-st)/CLOCKS_PER_SEC/TRIALS*1000<<"ms"<<endl;
 
     return 0;
 }
