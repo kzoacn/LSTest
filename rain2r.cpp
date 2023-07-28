@@ -15,7 +15,7 @@ const int n=N;
 vector<int> irr_poly,irr_pos;
 
 Rain rain;
-GF P,K,C,X=1;
+GF P,K,C,X;
 vector<GF> M1,M1_inv;
 
 void set_parameters(){
@@ -465,6 +465,13 @@ Poly pow(Poly x,int t){
 
 int ans=0;
 
+GF eval(QuadPoly a,GF x){
+    GF res;
+    for(int i=0;i<n;i++){
+        res[i]= a[i].eval(x);
+    }
+    return res;
+}
 GF eval(Poly a,GF x){
     GF res;
     for(int i=0;i<n;i++){
@@ -485,20 +492,23 @@ void generate(int _i){
     Poly x;
     Poly power_of_x[n]; 
 
-    Poly a,alpha,one;
+    Poly a,alpha,one,linear_param;
     one.resize(n);
 
-    GF _a = _i;
+    GF _a = GF_pow(2,_i);
     GF _alpha = GF_pow(_a,(1<<LOGD)+1);
+    GF _linear_param = GF_mul(GF_inv(_a),GF_inv(GF_pow(_a,1<<LOGD)));
 
     a.resize(n);
     alpha.resize(n);
+    linear_param.resize(n);
     one[0].set_const(1);
     
     
     for(int i=0;i<n;i++){
         a[i].set_const(_a[i]);
         alpha[i].set_const(_alpha[i]);
+        linear_param[i].set_const(_linear_param[i]);
     }
 
     x.resize(n);
@@ -515,7 +525,7 @@ void generate(int _i){
 
     for(auto t : {T}){ 
         //auto equation=add(power_of_x[t],multiply(pow(alpha,2*LOGD,-1),x));  
-        auto _const = GF_pow(_alpha,(1ULL<<2*LOGD)-1);
+        auto _const = GF_pow(_alpha,(1ULL<<LOGD)-1);
         Poly c;
         c.resize(n);
         for(int i=0;i<n;i++)
@@ -551,8 +561,8 @@ void generate(int _i){
     auto basic_vars=basis.basic_vars();
     free_vars=basis.free_vars();
     int rank=basis.rank();
-/*
-    cout<<"rank = "<<rank<<endl;
+
+    /*cout<<"rank = "<<rank<<endl;
     for(auto var : basic_vars){
         cout<<"basic var: "<<name(var)<<endl;
     }
@@ -661,10 +671,8 @@ void generate(int _i){
 
 
     // alpha
-    auto K=add(repr_x,c1_P);
-
-
-    auto before =  add( multiply_matrix(M1,pow(repr_x,LOGD)),add(K,c2));  
+    auto K=add(repr_x,c1_P); 
+    auto before =  add( multiply_matrix(M1, multiply_const(linear_param, pow(repr_x,LOGD))),add(K,c2));  
     auto after = add(K,c);
 
     
@@ -685,7 +693,6 @@ void generate(int _i){
 
     auto rx=add(multiply(before,after),one);   
     auto r2x_r=add(multiply(square(before),after),before); 
-
 
     equations_over_GF2n.push_back(rx); 
     equations_over_GF2n.push_back(r2x_r);
@@ -765,7 +772,7 @@ void generate(int _i){
 
     auto _c = rain.enc_2r(candidate_key,P);
     if (_c==C){
-        cout<<"found key"<<endl;
+        cout<<"found key " << endl;
         print(candidate_key);
     }
 
@@ -798,12 +805,12 @@ int main(){
     rain.simple();
 
     M1=rain.M1;
-    M1_inv = mat_inv(M1);
+
     P=GF_rand();
     K=GF_rand();
     
-    //X=K^P^rain.c1;
 
+    X = GF_pow(2,42);
     K = X^rain.c1^P;
     
     cout<<"K =";
@@ -822,8 +829,9 @@ int main(){
     double st=clock();
     int TRIALS=100;
 
-    for(int i=1;i<=TRIALS;i++)
+    for(int i=0;i<TRIALS;i++){
         generate(i);
+    }
     cout<<"average time = "<<(clock()-st)/CLOCKS_PER_SEC/TRIALS*1000<<"ms"<<endl;
 
     return 0;
