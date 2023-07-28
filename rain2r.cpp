@@ -536,10 +536,7 @@ void generate(int _i){
             equations.push_back(eq);
         }
     }
-
-    //cout<<"### Linear equations: ###"<<endl;
-    //for(auto eq : equations)
-    //    eq.print(); 
+ 
 
     BitBasisWithConstant<n> basis;
     //Finding free variables O(n^3)
@@ -549,26 +546,12 @@ void generate(int _i){
             bs[i]=1;
         bs[n]=eq.get_const();
         basis.insert(bs);
-    }
-    //print basis
-    /*for(int i=0;i<n;i++){
-        for(int j=0;j<n;j++){
-            cout<<basis.bs[i][j];
-        }
-        cout<<endl;
-    }*/
+    } 
 
     auto basic_vars=basis.basic_vars();
     free_vars=basis.free_vars();
     int rank=basis.rank();
-
-    /*cout<<"rank = "<<rank<<endl;
-    for(auto var : basic_vars){
-        cout<<"basic var: "<<name(var)<<endl;
-    }
-    for(auto var : free_vars){
-        cout<<"free var: "<<name(var)<<endl;
-    }*/
+ 
     vector<Expression<N> > repr_x;// represent basic vars as linear combination of free vars O(n^2)
     repr_x.resize(n);
     for(int i=n-1;i>=0;i--){
@@ -583,13 +566,7 @@ void generate(int _i){
         }else{
             repr_x[i]=Expression<N>(i);
         }
-    }
-    /*cout<<"### represent vars as free vars ###"<<endl;
-    for(int i=0;i<n;i++){
-        auto r=repr_x[i];
-        cout<<name(i)<<" = ";
-        r.print();
-    }*/
+    } 
  
 
     vector<Poly> power_of_repr_x;
@@ -602,19 +579,7 @@ void generate(int _i){
         tx=square(tx);
     }
 
-
-    //cout<<"### finding quadratic equations ###"<<endl; 
-    //auto mat = rand_mat(); 
-
-
-    //output mat
-    /*cout<<"M: "<<endl;
-    for(int i=0;i<n;i++){
-        for(int j=0;j<n;j++){
-            cout<<mat[i][j];
-        }
-        cout<<endl;
-    }*/
+ 
 
     
     Poly c1_P,c2,c;
@@ -626,20 +591,7 @@ void generate(int _i){
         c2[i].set_const(rain.c2[i]);
         c[i].set_const(C[i]);
     }
-
-    //b[0].set_const(1);
-    //c[0].set_const(1);
-
-    /*cout<<"b: "<<endl;
-    for(int i=0;i<n;i++){
-        cout<<b[i].constant;
-    }
-    cout<<endl;
-    cout<<"c: "<<endl;
-    for(int i=0;i<n;i++){
-        cout<<c[i].constant;
-    }
-    cout<<endl;*/
+ 
 
     equations.clear();
 
@@ -674,20 +626,7 @@ void generate(int _i){
     auto K=add(repr_x,c1_P); 
     auto before =  add( multiply_matrix(M1, multiply_const(linear_param, pow(repr_x,LOGD))),add(K,c2));  
     auto after = add(K,c);
-
-    
-    /*puts("before at X");
-    auto eb = eval(before,X);
-    print(eb);
-    puts("after at X");
-    auto ea = eval(after,X);
-    print(ea);
-
-    puts("mul");
-    print(GF_mul(eb,ea));
-
-    puts("mul inv");
-    print(GF_mul(eb,GF_inv(eb)));*/
+ 
 
 
 
@@ -701,22 +640,15 @@ void generate(int _i){
 #if N != 128    
     auto rx2_x=add(multiply(before,square(after)),after);  
     equations_over_GF2n.push_back(rx2_x); 
-#endif
+#endif 
 
-    //rx[0].print(true);
-
-    //Finding l
-    //Solving final quadratic equations costs O(quad_vars^3)
     QuadPoly equations_quad ;
     for(auto equation : equations_over_GF2n){
         for(auto eq: equation){ 
             equations_quad.push_back(eq);
         }
     }
-
-    for(auto eq : equations_quad){
-       // eq.print();
-    }
+ 
 
  
     BitBasisWithConstant<QUAD_VARS> basis2;
@@ -730,8 +662,7 @@ void generate(int _i){
         if(basis2.rank()==QUAD_VARS)
             break;
     }
-
-    //ans^=basis2.rank();
+ 
 
     bitset<QUAD_VARS>val;
     
@@ -774,33 +705,13 @@ void generate(int _i){
     if (_c==C){
         cout<<"found key " << endl;
         print(candidate_key);
-    }
-
-    /*cout<<"candidate key =";
-    for(int i=0;i<128;i++)
-        cout<<candidate_key[i];
-    cout<<endl;*/
-
-    /*cout<<"Field : GF(2^"<<n<<")"<<endl; 
-    cout<<"Guess : x^(2^"<<LOGD<<"+1)"<<endl; 
-    cout<<"number of free variable : "<<n-rank<<endl;
-    cout<<"number of quadratic variables : "<<QUAD_VARS<<endl;
-    cout<<"number of linear independent quadratic equations : "<<basis2.rank()<<endl;
-    if(basis2.rank() >= QUAD_VARS) 
-        cout<<"Complexity : 2^"<<(n-LOGD+3*(log2(max(n,QUAD_VARS))-log2(n)))<<endl; 
-    else
-        cout<<"Unsolvable"<<endl;*/
+    } 
 }
 
 
 int main(){
     srand(123);
-    set_parameters();
-    //for(int i=0;i<100;i++){
-    //    cout<<"checking "<<i<<endl;
-    //}
-    //count();
-
+    set_parameters(); 
     
     rain.simple();
 
